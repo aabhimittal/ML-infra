@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlinfra"
+version = "0.1.0"
+description = "A compact, runnable ML-infrastructure showcase: inference serving, RAG orchestration, and MLOps tracking."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Abhishek Mittal" }]
+keywords = ["mlops", "llm", "inference", "serving", "rag", "vllm", "mlflow"]
+
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "pydantic>=2.5",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+# Heavy/optional integrations. None are required to run the project.
+hf = ["transformers>=4.40", "torch>=2.2"]
+embeddings = ["sentence-transformers>=2.7"]
+anthropic = ["anthropic>=0.40"]
+
+[project.scripts]
+mlinfra-server = "mlinfra.serving.server:main"
+mlinfra-bench = "examples.benchmark:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
