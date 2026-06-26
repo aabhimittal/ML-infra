@@ -16,6 +16,12 @@ from mlinfra.cuda.compile import (
     ptx_to_cubin,
     ptxas_path,
 )
+from mlinfra.cuda.bench import (
+    BenchResult,
+    benchmark_impls,
+    format_results,
+    run_softmax_benchmark,
+)
 from mlinfra.cuda.numba_kernels import (
     NumbaUnavailableError,
     compile_saxpy_ptx,
@@ -44,6 +50,11 @@ __all__ = [
     # triton (GPU-gated) path
     "triton_available",
     "triton_gpu_ready",
+    # benchmark harness
+    "BenchResult",
+    "benchmark_impls",
+    "format_results",
+    "run_softmax_benchmark",
     # driver-API launch (GPU-gated)
     "NoGpuError",
     "gpu_available",
