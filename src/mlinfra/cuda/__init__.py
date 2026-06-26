@@ -16,9 +16,17 @@ from mlinfra.cuda.compile import (
     ptx_to_cubin,
     ptxas_path,
 )
+from mlinfra.cuda.numba_kernels import (
+    NumbaUnavailableError,
+    compile_saxpy_ptx,
+    compile_softmax_ptx,
+    numba_available,
+)
 from mlinfra.cuda.runtime import NoGpuError, gpu_available
+from mlinfra.cuda.triton_kernels import triton_available, triton_gpu_ready
 
 __all__ = [
+    # raw CUDA C++ (NVRTC) path
     "CompileResult",
     "CudaToolchainError",
     "compile_file",
@@ -28,6 +36,15 @@ __all__ = [
     "nvrtc_available",
     "ptx_to_cubin",
     "ptxas_path",
+    # numba (Python -> PTX, CPU-compilable) path
+    "NumbaUnavailableError",
+    "compile_saxpy_ptx",
+    "compile_softmax_ptx",
+    "numba_available",
+    # triton (GPU-gated) path
+    "triton_available",
+    "triton_gpu_ready",
+    # driver-API launch (GPU-gated)
     "NoGpuError",
     "gpu_available",
 ]

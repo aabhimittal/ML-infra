@@ -32,6 +32,11 @@ anthropic = ["anthropic>=0.40"]
 # CUDA compiler toolchain (NVRTC + ptxas) as pip wheels. Compiles kernels on CPU; no GPU
 # needed to install or to run the compile tests. Launching kernels still requires a GPU.
 cuda = ["nvidia-cuda-nvrtc-cu12>=12.0", "nvidia-cuda-nvcc-cu12>=12.0"]
+# numba.cuda: write kernels in Python, compile to PTX on CPU via numba-cuda + the NVIDIA
+# binding (auto-detects the nvcc wheel). CPU-verifiable, like the NVRTC path.
+numba = ["numba-cuda>=0.30", "cuda-python>=12.0", "nvidia-cuda-nvcc-cu12>=12.0"]
+# Triton: vLLM/TGI's kernel language. Defines on CPU; compiles/launches only on a GPU.
+triton = ["triton>=3.0", "torch>=2.2"]
 
 [project.scripts]
 mlinfra-server = "mlinfra.serving.server:main"

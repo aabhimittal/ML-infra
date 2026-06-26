@@ -1,0 +1,32 @@
+name: GPU
+
+# Runs the GPU-gated tests (driver-API launch, numba launch, Triton kernels) on a runner that
+# actually has an NVIDIA device. This requires a self-hosted runner labelled `gpu`; on a fork
+# or a repo without one, the job simply never schedules — the CPU `CI` workflow stays the
+# source of truth for required checks. Manual dispatch is enabled for on-demand runs.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  gpu-tests:
+    runs-on: [self-hosted, gpu]
+    if: ${{ github.repository_owner != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show GPU
+        run: nvidia-smi
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (all kernel extras)
+        run: python -m pip install -e ".[dev,cuda,numba,triton]"
+      - name: Run full suite (GPU-gated tests included)
+        run: python -m pytest -q
+      - name: Sanity-check a real launch
+        run: |
+          python -c "from mlinfra.cuda.runtime import saxpy, gpu_available; \
+          assert gpu_available(); print(saxpy(2.0,[1,2,3],[10,10,10]))"
