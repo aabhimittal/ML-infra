@@ -30,3 +30,5 @@ jobs:
         run: |
           python -c "from mlinfra.cuda.runtime import saxpy, gpu_available; \
           assert gpu_available(); print(saxpy(2.0,[1,2,3],[10,10,10]))"
+      - name: Kernel benchmark (Triton vs numba vs cuBLAS), logged to tracker
+        run: python examples/kernel_bench.py

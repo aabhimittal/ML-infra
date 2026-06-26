@@ -135,3 +135,51 @@ def test_triton_softmax_or_skip():
     x = torch.randn(4, 128, device="cuda")
     expected = torch.softmax(x, dim=1)
     assert torch.allclose(softmax(x), expected, atol=1e-5)
+
+
+# --- benchmark harness (engine is CPU-tested with numpy) ------------------------------
+
+def test_benchmark_engine_ranks_and_flags_correctness():
+    import numpy as np
+
+    from mlinfra.cuda import benchmark_impls, format_results
+
+    def softmax_ref(x):
+        e = np.exp(x - x.max(axis=1, keepdims=True))
+        return e / e.sum(axis=1, keepdims=True)
+
+    def softmax_good(x):
+        return softmax_ref(x)
+
+    def softmax_wrong(x):  # forgets to normalize -> should be flagged incorrect
+        return np.exp(x - x.max(axis=1, keepdims=True))
+
+    rng = np.random.default_rng(0)
+    x = rng.standard_normal((64, 256)).astype(np.float32)
+
+    results = benchmark_impls(
+        {"good": softmax_good, "wrong": softmax_wrong},
+        reference=softmax_ref,
+        inputs=(x,),
+        warmup=1,
+        iters=5,
+        atol=1e-5,
+        work_items=x.size,
+    )
+    by_name = {r.name: r for r in results}
+    assert by_name["good"].correct is True
+    assert by_name["good"].max_abs_err <= 1e-5
+    assert by_name["wrong"].correct is False
+    assert all(r.mean_ms >= 0 for r in results)
+    assert by_name["good"].throughput_gitems_s > 0
+    assert "impl" in format_results(results)
+
+
+def test_softmax_benchmark_or_skip():
+    if not triton_gpu_ready():
+        pytest.skip("triton + torch + GPU required")
+    from mlinfra.cuda import run_softmax_benchmark
+
+    results = run_softmax_benchmark(rows=512, cols=512, iters=5, db_path=":memory:")
+    assert any(r.name == "triton" for r in results)
+    assert all(r.correct for r in results if r.name != "wrong")

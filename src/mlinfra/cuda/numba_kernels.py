@@ -146,3 +146,33 @@ def launch_saxpy(a: float, x, y):  # pragma: no cover - requires a GPU
     blocks = (x.size + threads - 1) // threads
     kernel[blocks, threads](np.float32(a), x, y, out)
     return out
+
+
+def launch_softmax(x, threads: int = 256):  # pragma: no cover - requires a GPU
+    """Run the numba row-softmax kernel on a GPU. Accepts a numpy array or torch tensor.
+
+    One block per row, with dynamic shared memory sized to the block. Returns the same type
+    as the input (torch tensor in / torch tensor out) so it slots into the benchmark harness.
+    """
+    cuda, _ = _require_numba()
+    if not cuda.is_available():
+        from mlinfra.cuda.runtime import NoGpuError
+
+        raise NoGpuError("No CUDA device available; run on a GPU host.")
+    import numpy as np
+
+    is_torch = hasattr(x, "detach")
+    arr = x.detach().cpu().numpy() if is_torch else np.asarray(x, dtype=np.float32)
+    arr = np.ascontiguousarray(arr, dtype=np.float32)
+    rows, _cols = arr.shape
+    out = np.empty_like(arr)
+
+    kernel = cuda.jit(_softmax_kernel())
+    shared_bytes = threads * 4  # float32 scratch for the block reduction
+    kernel[rows, threads, 0, shared_bytes](arr, out)
+
+    if is_torch:
+        import torch
+
+        return torch.as_tensor(out, device=x.device)
+    return out
