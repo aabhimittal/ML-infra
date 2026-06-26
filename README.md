@@ -9,6 +9,7 @@ contribute to daily:
 | **Serving** (`mlinfra.serving`) | vLLM, HF TGI | Async **continuous batching**, KV-cache-style per-request state, token streaming (SSE), live throughput/TTFT metrics |
 | **Orchestration** (`mlinfra.orchestration`) | LangChain, LlamaIndex | A **RAG pipeline** from composable parts: loaders/connectors, vector store, retriever, serving client |
 | **Tracking** (`mlinfra.tracking`) | MLflow, ZenML | sqlite **experiment tracking** + a **DAG scheduler** with content-hash step caching |
+| **CUDA** (`mlinfra.cuda`) | vLLM/TGI custom kernels | Real `.cu` kernels **compiled to PTX/SASS on CPU** via NVRTC; GPU-gated launch path |
 
 The layers compose into one story: the orchestration layer calls the serving layer; the
 tracking layer records serving and pipeline metrics.
@@ -79,12 +80,39 @@ python examples/rag_demo.py
   parameter name, run in topological order, with outputs cached by a content hash of the
   step source plus its inputs — re-running unchanged steps is a cache hit.
 
+## CUDA kernels (compile on CPU, launch on GPU)
+
+`mlinfra.cuda` ships real CUDA C++ kernels (`saxpy`, a shared-memory **tiled GEMM**, and a
+numerically-stable **fused softmax** — the building blocks of a transformer block). The
+compiler toolchain installs as pip wheels, so kernels compile **all the way to PTX and SASS
+on a CPU-only machine** — no GPU required:
+
+```bash
+pip install -e ".[cuda]"            # NVRTC + ptxas wheels
+python examples/cuda_compile_demo.py
+# fused_softmax  arch=compute_75  PTX=3467B  ~instrs=102  cubin=5536B (SASS)
+# tiled_gemm     arch=compute_75  PTX=4721B  ~instrs=126  cubin=4256B (SASS)
+# GPU available for launch: False
+```
+
+```python
+from mlinfra.cuda import compile_kernel, ptx_to_cubin, gpu_available
+res = compile_kernel("tiled_gemm")      # CUDA C++ -> PTX (via NVRTC)
+cubin = ptx_to_cubin(res.ptx, "sm_75")  # PTX -> SASS (via ptxas)
+```
+
+**What runs where:** compilation (`mlinfra.cuda.compile`) is CPU-only and CI-tested.
+*Launching* a kernel (`mlinfra.cuda.runtime`) needs an actual GPU + driver (`libcuda.so`);
+those entry points check `gpu_available()` and raise/skip cleanly otherwise, so the code path
+is ready for a GPU host without breaking CPU CI.
+
 ## Optional extras
 
 ```bash
 pip install -e ".[hf]"          # transformers backend
 pip install -e ".[embeddings]"  # sentence-transformers embeddings
 pip install -e ".[anthropic]"   # Anthropic API backend
+pip install -e ".[cuda]"        # NVRTC + ptxas (kernel compilation on CPU)
 ```
 
 ## Layout
@@ -93,6 +121,7 @@ pip install -e ".[anthropic]"   # Anthropic API backend
 src/mlinfra/serving/        # engine, backends, FastAPI server, schemas
 src/mlinfra/orchestration/  # loaders, vector store, retriever, client, pipeline
 src/mlinfra/tracking/       # tracker, metrics registry, DAG scheduler
-examples/                   # run_server, rag_demo, benchmark
+src/mlinfra/cuda/           # .cu kernels, NVRTC/ptxas compiler, GPU-gated runtime
+examples/                   # run_server, rag_demo, benchmark, cuda_compile_demo
 tests/                      # one suite per layer
 ```
