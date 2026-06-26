@@ -18,9 +18,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        # The cuda extra pulls the NVRTC/ptxas wheels (Linux x86_64) so the kernel-compile
-        # tests run on CI; they compile on CPU and need no GPU.
-        run: python -m pip install -e ".[dev,cuda]"
+        # cuda + numba extras pull the NVRTC/ptxas/NVVM wheels (Linux x86_64) so both the
+        # raw-CUDA and numba kernel-compile tests run on CI; they compile on CPU, no GPU.
+        # Triton/launch tests stay GPU-gated and run in the separate `GPU` workflow.
+        run: python -m pip install -e ".[dev,cuda,numba]"
       - name: Lint
         run: python -m ruff check src tests examples
       - name: Test

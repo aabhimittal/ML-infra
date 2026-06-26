@@ -9,7 +9,7 @@ contribute to daily:
 | **Serving** (`mlinfra.serving`) | vLLM, HF TGI | Async **continuous batching**, KV-cache-style per-request state, token streaming (SSE), live throughput/TTFT metrics |
 | **Orchestration** (`mlinfra.orchestration`) | LangChain, LlamaIndex | A **RAG pipeline** from composable parts: loaders/connectors, vector store, retriever, serving client |
 | **Tracking** (`mlinfra.tracking`) | MLflow, ZenML | sqlite **experiment tracking** + a **DAG scheduler** with content-hash step caching |
-| **CUDA** (`mlinfra.cuda`) | vLLM/TGI custom kernels | Real `.cu` kernels **compiled to PTX/SASS on CPU** via NVRTC; GPU-gated launch path |
+| **CUDA** (`mlinfra.cuda`) | vLLM/TGI custom kernels | Real kernels in **CUDA C++ (NVRTC)**, **Python (numba)**, and **Triton** — compiled to PTX on CPU; GPU-gated launch |
 
 The layers compose into one story: the orchestration layer calls the serving layer; the
 tracking layer records serving and pipeline metrics.
@@ -101,10 +101,37 @@ res = compile_kernel("tiled_gemm")      # CUDA C++ -> PTX (via NVRTC)
 cubin = ptx_to_cubin(res.ptx, "sm_75")  # PTX -> SASS (via ptxas)
 ```
 
-**What runs where:** compilation (`mlinfra.cuda.compile`) is CPU-only and CI-tested.
-*Launching* a kernel (`mlinfra.cuda.runtime`) needs an actual GPU + driver (`libcuda.so`);
-those entry points check `gpu_available()` and raise/skip cleanly otherwise, so the code path
-is ready for a GPU host without breaking CPU CI.
+### Three ways to write a kernel
+
+The same softmax/elementwise kernels are provided in all three languages MLE platform teams
+actually use, so you can compare them:
+
+| Path | Module | Extra | CPU-compilable? |
+|------|--------|-------|-----------------|
+| CUDA C++ | `mlinfra.cuda.compile` (`kernels/*.cu`) | `[cuda]` | ✅ via NVRTC |
+| Python   | `mlinfra.cuda.numba_kernels` | `[numba]` | ✅ via numba-cuda + NVVM |
+| Triton   | `mlinfra.cuda.triton_kernels` | `[triton]` | ❌ GPU backend only |
+
+```python
+# numba: write the kernel in Python, compile to PTX on CPU (no GPU)
+from mlinfra.cuda import compile_softmax_ptx
+ptx = compile_softmax_ptx(cc=(8, 0))    # -> '.target sm_80 ...'
+
+# triton: defined on CPU, compiled+launched on a GPU
+from mlinfra.cuda.triton_kernels import softmax, triton_gpu_ready
+```
+
+```bash
+pip install -e ".[numba]" && python examples/numba_compile_demo.py
+# saxpy        cc=8.0  PTX=11342B  .target sm_80
+# softmax_rows cc=9.0  PTX=15336B  .target sm_90
+```
+
+**What runs where:** compilation of the CUDA C++ and numba kernels is CPU-only and CI-tested.
+*Launching* any kernel (`mlinfra.cuda.runtime`, numba/Triton host wrappers) needs an actual
+GPU + driver (`libcuda.so`); those entry points check `gpu_available()` / `triton_gpu_ready()`
+and raise or skip cleanly otherwise. The GPU-gated tests run in the separate `GPU` workflow
+(`.github/workflows/gpu.yml`) on a self-hosted GPU runner, so CPU CI stays green.
 
 ## Optional extras
 
@@ -112,7 +139,9 @@ is ready for a GPU host without breaking CPU CI.
 pip install -e ".[hf]"          # transformers backend
 pip install -e ".[embeddings]"  # sentence-transformers embeddings
 pip install -e ".[anthropic]"   # Anthropic API backend
-pip install -e ".[cuda]"        # NVRTC + ptxas (kernel compilation on CPU)
+pip install -e ".[cuda]"        # NVRTC + ptxas (CUDA C++ -> PTX/SASS on CPU)
+pip install -e ".[numba]"       # numba-cuda (Python kernels -> PTX on CPU)
+pip install -e ".[triton]"      # triton + torch (GPU-only kernels)
 ```
 
 ## Layout
@@ -121,7 +150,7 @@ pip install -e ".[cuda]"        # NVRTC + ptxas (kernel compilation on CPU)
 src/mlinfra/serving/        # engine, backends, FastAPI server, schemas
 src/mlinfra/orchestration/  # loaders, vector store, retriever, client, pipeline
 src/mlinfra/tracking/       # tracker, metrics registry, DAG scheduler
-src/mlinfra/cuda/           # .cu kernels, NVRTC/ptxas compiler, GPU-gated runtime
-examples/                   # run_server, rag_demo, benchmark, cuda_compile_demo
+src/mlinfra/cuda/           # CUDA C++/numba/Triton kernels, compilers, GPU-gated runtime
+examples/                   # run_server, rag_demo, benchmark, cuda/numba compile demos
 tests/                      # one suite per layer
 ```
