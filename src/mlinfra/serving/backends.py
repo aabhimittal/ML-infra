@@ -16,11 +16,12 @@ from collections.abc import Iterator
 _WORD_RE = re.compile(r"\S+")
 
 # A small, fixed vocabulary keeps mock output readable and deterministic.
-_VOCAB = (
-    "the model serves tokens through a batched scheduler while tracking latency and "
-    "throughput across requests so operators can reason about tail behavior and "
-    "capacity under load in production".split()
-)
+_VOCAB = [
+    "the", "model", "serves", "tokens", "through", "a", "batched", "scheduler",
+    "while", "tracking", "latency", "and", "throughput", "across", "requests", "so",
+    "operators", "can", "reason", "about", "tail", "behavior", "and", "capacity",
+    "under", "load", "in", "production",
+]
 
 
 def count_tokens(text: str) -> int:
@@ -113,8 +114,7 @@ def _load_anthropic_backend(model: str) -> ModelBackend:
                 temperature=temperature,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
-                for chunk in stream.text_stream:
-                    yield chunk
+                yield from stream.text_stream
 
     return AnthropicBackend()
 

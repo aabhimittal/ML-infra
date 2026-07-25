@@ -34,7 +34,8 @@ def main() -> None:
 
     print(f"\ntriton available: {triton_available()}  |  triton GPU ready: {triton_gpu_ready()}")
     if triton_available() and not triton_gpu_ready():
-        print("(triton kernels defined; compile/launch needs a GPU — see mlinfra.cuda.triton_kernels)")
+        print("(triton kernels defined; compile/launch needs a GPU"
+              " — see mlinfra.cuda.triton_kernels)")
 
 
 if __name__ == "__main__":

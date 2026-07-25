@@ -28,10 +28,9 @@ def test_tracker_persists_params_and_metrics(tmp_path: Path):
 
 def test_tracker_marks_failed_run(tmp_path: Path):
     tracker = ExperimentTracker(db_path=tmp_path / "mlruns.db")
-    with pytest.raises(RuntimeError):
-        with tracker.start_run(experiment="exp") as run:
-            run_id = run.run_id
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError), tracker.start_run(experiment="exp") as run:
+        run_id = run.run_id
+        raise RuntimeError("boom")
     # Run is recorded even though it failed; status is captured internally.
     assert run_id in tracker.list_runs("exp")
 

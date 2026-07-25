@@ -12,9 +12,9 @@ from mlinfra.tracking.tracker import ExperimentTracker, Run
 
 __all__ = [
     "ExperimentTracker",
-    "Run",
     "MetricsRegistry",
     "Pipeline",
+    "Run",
     "Step",
     "step",
 ]

@@ -8,8 +8,8 @@ Public surface:
 """
 
 from mlinfra.serving.backends import (
-    ModelBackend,
     MockModelBackend,
+    ModelBackend,
     get_backend,
 )
 from mlinfra.serving.engine import ContinuousBatchingEngine, EngineConfig
@@ -20,12 +20,12 @@ from mlinfra.serving.schemas import (
 )
 
 __all__ = [
-    "ModelBackend",
-    "MockModelBackend",
-    "get_backend",
     "ContinuousBatchingEngine",
     "EngineConfig",
     "GenerateRequest",
     "GenerateResponse",
     "MetricsSnapshot",
+    "MockModelBackend",
+    "ModelBackend",
+    "get_backend",
 ]

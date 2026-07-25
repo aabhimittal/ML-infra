@@ -15,7 +15,7 @@ from functools import lru_cache
 @lru_cache(maxsize=1)
 def triton_available() -> bool:
     try:
-        import triton  # noqa: F401
+        import triton
         import triton.language  # noqa: F401
 
         return True
@@ -76,7 +76,7 @@ if triton_available():
         b_ptrs = b_ptr + offs_k[:, None] * stride_bk + offs_n[None, :] * stride_bn
 
         acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
-        for k in range(0, tl.cdiv(K, BLOCK_K)):
+        for k in range(tl.cdiv(K, BLOCK_K)):
             k_remaining = K - k * BLOCK_K
             a = tl.load(a_ptrs, mask=(offs_m[:, None] < M) & (offs_k[None, :] < k_remaining),
                         other=0.0)

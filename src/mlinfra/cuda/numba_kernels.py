@@ -18,7 +18,7 @@ import os
 # pip-installed NVVM/nvcc wheels (no system CUDA toolkit needed). Set before importing numba.
 os.environ.setdefault("NUMBA_CUDA_USE_NVIDIA_BINDING", "1")
 
-from functools import lru_cache  # noqa: E402
+from functools import lru_cache
 
 
 class NumbaUnavailableError(RuntimeError):

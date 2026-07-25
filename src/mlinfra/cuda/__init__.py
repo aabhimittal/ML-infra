@@ -5,6 +5,13 @@ installed (``pip install mlinfra[cuda]``) — no GPU required. The launch path
 (:mod:`~mlinfra.cuda.runtime`) needs real hardware and degrades gracefully otherwise.
 """
 
+from mlinfra.cuda.bench import (
+    BenchResult,
+    benchmark_impls,
+    format_results,
+    run_gemm_benchmark,
+    run_softmax_benchmark,
+)
 from mlinfra.cuda.compile import (
     CompileResult,
     CudaToolchainError,
@@ -16,13 +23,6 @@ from mlinfra.cuda.compile import (
     ptx_to_cubin,
     ptxas_path,
 )
-from mlinfra.cuda.bench import (
-    BenchResult,
-    benchmark_impls,
-    format_results,
-    run_gemm_benchmark,
-    run_softmax_benchmark,
-)
 from mlinfra.cuda.numba_kernels import (
     NumbaUnavailableError,
     compile_gemm_ptx,
@@ -33,7 +33,9 @@ from mlinfra.cuda.numba_kernels import (
 from mlinfra.cuda.runtime import NoGpuError, gpu_available
 from mlinfra.cuda.triton_kernels import triton_available, triton_gpu_ready
 
-__all__ = [
+# Grouped by kernel path rather than sorted alphabetically — the grouping is the
+# documentation here, so RUF022 (sorted __all__) is waived for this module only.
+__all__ = [  # noqa: RUF022
     # raw CUDA C++ (NVRTC) path
     "CompileResult",
     "CudaToolchainError",

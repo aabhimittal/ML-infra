@@ -11,10 +11,10 @@ import json
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (

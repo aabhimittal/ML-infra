@@ -111,7 +111,8 @@ def test_numba_targets_requested_arch():
 
 
 def test_numba_launch_or_skip():
-    from mlinfra.cuda.numba_kernels import launch_saxpy, numba_available as nb
+    from mlinfra.cuda.numba_kernels import launch_saxpy
+    from mlinfra.cuda.numba_kernels import numba_available as nb
 
     if not nb():
         pytest.skip("numba not installed")
