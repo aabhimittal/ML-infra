@@ -36,7 +36,14 @@ anthropic = ["anthropic>=0.40"]
 cuda = ["nvidia-cuda-nvrtc-cu12>=12.0", "nvidia-cuda-nvcc-cu12>=12.0"]
 # numba.cuda: write kernels in Python, compile to PTX on CPU via numba-cuda + the NVIDIA
 # binding (auto-detects the nvcc wheel). CPU-verifiable, like the NVRTC path.
-numba = ["numba-cuda>=0.30", "cuda-python>=12.0", "nvidia-cuda-nvcc-cu12>=12.0"]
+numba = [
+    "numba-cuda>=0.30",
+    "cuda-python>=12.0",
+    "nvidia-cuda-nvcc-cu12>=12.0",
+    # numba-cuda probes the CUDA runtime version at import time, so `from numba import cuda`
+    # raises DynamicLibNotFoundError without libcudart even though compilation never needs it.
+    "nvidia-cuda-runtime-cu12>=12.0",
+]
 # Triton: vLLM/TGI's kernel language. Defines on CPU; compiles/launches only on a GPU.
 triton = ["triton>=3.0", "torch>=2.2"]
 

@@ -22,6 +22,19 @@ jobs:
         # raw-CUDA and numba kernel-compile tests run on CI; they compile on CPU, no GPU.
         # Triton/launch tests stay GPU-gated and run in the separate `GPU` workflow.
         run: python -m pip install -e ".[dev,cuda,numba]"
+      - name: Assert CPU-verifiable toolchains are active
+        # Guards against a green-but-hollow run. The kernel tests skip when a toolchain is
+        # missing, so a silent detection regression would otherwise still pass CI. These
+        # three must be usable on a CPU runner once the extras are installed; fail loudly
+        # if they are not, instead of quietly skipping the compile coverage.
+        run: |
+          python - <<'PY'
+          from mlinfra.cuda import numba_available, nvrtc_available, ptxas_path
+          assert nvrtc_available(), "NVRTC missing: CUDA C++ compile tests would silently skip"
+          assert ptxas_path(), "ptxas missing: the PTX->cubin test would silently skip"
+          assert numba_available(), "numba CUDA missing: numba compile tests would silently skip"
+          print("toolchains active: nvrtc, ptxas, numba")
+          PY
       - name: Lint
         run: python -m ruff check src tests examples
       - name: Test
