@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from mlinfra.cuda import (
+    compile_gemm_ptx,
     compile_saxpy_ptx,
     compile_softmax_ptx,
     numba_available,
@@ -20,7 +21,12 @@ def main() -> None:
         print("numba toolchain not installed. Run: pip install -e '.[numba]'")
         return
 
-    for name, fn in [("saxpy", compile_saxpy_ptx), ("softmax_rows", compile_softmax_ptx)]:
+    kernels = [
+        ("saxpy", compile_saxpy_ptx),
+        ("softmax_rows", compile_softmax_ptx),
+        ("sgemm_tiled", compile_gemm_ptx),
+    ]
+    for name, fn in kernels:
         for cc in [(7, 5), (8, 0), (9, 0)]:
             ptx = fn(cc=cc)
             target = next(line for line in ptx.splitlines() if line.startswith(".target"))

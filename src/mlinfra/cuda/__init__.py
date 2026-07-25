@@ -20,10 +20,12 @@ from mlinfra.cuda.bench import (
     BenchResult,
     benchmark_impls,
     format_results,
+    run_gemm_benchmark,
     run_softmax_benchmark,
 )
 from mlinfra.cuda.numba_kernels import (
     NumbaUnavailableError,
+    compile_gemm_ptx,
     compile_saxpy_ptx,
     compile_softmax_ptx,
     numba_available,
@@ -44,6 +46,7 @@ __all__ = [
     "ptxas_path",
     # numba (Python -> PTX, CPU-compilable) path
     "NumbaUnavailableError",
+    "compile_gemm_ptx",
     "compile_saxpy_ptx",
     "compile_softmax_ptx",
     "numba_available",
@@ -54,6 +57,7 @@ __all__ = [
     "BenchResult",
     "benchmark_impls",
     "format_results",
+    "run_gemm_benchmark",
     "run_softmax_benchmark",
     # driver-API launch (GPU-gated)
     "NoGpuError",

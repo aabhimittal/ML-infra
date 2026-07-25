@@ -113,6 +113,53 @@ def _softmax_kernel():
     return softmax_rows
 
 
+def _gemm_kernel(tile: int = 16):
+    """Shared-memory tiled SGEMM — the Python twin of ``kernels/tiled_gemm.cu``.
+
+    ``tile`` is captured as a closure constant so numba can size the shared-memory tiles at
+    compile time (they must be compile-time constants, exactly as in CUDA C++).
+    """
+    cuda, float32 = _require_numba()
+
+    TILE = tile
+
+    def sgemm_tiled(A, B, C):
+        sA = cuda.shared.array(shape=(TILE, TILE), dtype=float32)
+        sB = cuda.shared.array(shape=(TILE, TILE), dtype=float32)
+
+        tx = cuda.threadIdx.x
+        ty = cuda.threadIdx.y
+        row = cuda.blockIdx.y * TILE + ty
+        col = cuda.blockIdx.x * TILE + tx
+
+        M = A.shape[0]
+        K = A.shape[1]
+        N = B.shape[1]
+
+        acc = float32(0.0)
+        for t in range((K + TILE - 1) // TILE):
+            a_col = t * TILE + tx
+            b_row = t * TILE + ty
+            if row < M and a_col < K:
+                sA[ty, tx] = A[row, a_col]
+            else:
+                sA[ty, tx] = float32(0.0)
+            if b_row < K and col < N:
+                sB[ty, tx] = B[b_row, col]
+            else:
+                sB[ty, tx] = float32(0.0)
+            cuda.syncthreads()
+
+            for k in range(TILE):
+                acc += sA[ty, k] * sB[k, tx]
+            cuda.syncthreads()
+
+        if row < M and col < N:
+            C[row, col] = acc
+
+    return sgemm_tiled
+
+
 def compile_saxpy_ptx(cc: tuple[int, int] = (7, 5)) -> str:
     """Compile the numba SAXPY kernel to PTX on CPU. Returns the PTX text."""
     cuda, float32 = _require_numba()
@@ -126,6 +173,14 @@ def compile_softmax_ptx(cc: tuple[int, int] = (7, 5)) -> str:
     cuda, float32 = _require_numba()
     sig = (float32[:, :], float32[:, :])
     ptx, _ = cuda.compile_ptx(_softmax_kernel(), sig, cc=cc)
+    return ptx
+
+
+def compile_gemm_ptx(cc: tuple[int, int] = (7, 5), tile: int = 16) -> str:
+    """Compile the numba tiled-GEMM kernel to PTX on CPU. Returns the PTX text."""
+    cuda, float32 = _require_numba()
+    sig = (float32[:, :], float32[:, :], float32[:, :])
+    ptx, _ = cuda.compile_ptx(_gemm_kernel(tile), sig, cc=cc)
     return ptx
 
 
@@ -176,3 +231,38 @@ def launch_softmax(x, threads: int = 256):  # pragma: no cover - requires a GPU
 
         return torch.as_tensor(out, device=x.device)
     return out
+
+
+def launch_gemm(a, b, tile: int = 16):  # pragma: no cover - requires a GPU
+    """Run the numba tiled SGEMM on a GPU. Accepts numpy arrays or torch tensors.
+
+    Returns the same type as the input (torch in / torch out) so it slots into the benchmark
+    harness alongside the Triton and cuBLAS implementations.
+    """
+    cuda, _ = _require_numba()
+    if not cuda.is_available():
+        from mlinfra.cuda.runtime import NoGpuError
+
+        raise NoGpuError("No CUDA device available; run on a GPU host.")
+    import numpy as np
+
+    is_torch = hasattr(a, "detach")
+    A = a.detach().cpu().numpy() if is_torch else np.asarray(a, dtype=np.float32)
+    B = b.detach().cpu().numpy() if is_torch else np.asarray(b, dtype=np.float32)
+    A = np.ascontiguousarray(A, dtype=np.float32)
+    B = np.ascontiguousarray(B, dtype=np.float32)
+    if A.shape[1] != B.shape[0]:
+        raise ValueError(f"shape mismatch for GEMM: {A.shape} @ {B.shape}")
+
+    M, N = A.shape[0], B.shape[1]
+    C = np.empty((M, N), dtype=np.float32)
+
+    kernel = cuda.jit(_gemm_kernel(tile))
+    blocks = ((N + tile - 1) // tile, (M + tile - 1) // tile)  # grid is (x=cols, y=rows)
+    kernel[blocks, (tile, tile)](A, B, C)
+
+    if is_torch:
+        import torch
+
+        return torch.as_tensor(C, device=a.device)
+    return C

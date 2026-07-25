@@ -75,6 +75,7 @@ def test_gpu_launch_or_skip():
 # --- numba.cuda path (compiles to PTX on CPU) -----------------------------------------
 
 from mlinfra.cuda import (  # noqa: E402
+    compile_gemm_ptx,
     compile_saxpy_ptx,
     compile_softmax_ptx,
     numba_available,
@@ -88,11 +89,20 @@ requires_numba = pytest.mark.skipif(
 
 
 @requires_numba
-@pytest.mark.parametrize("compile_fn", [compile_saxpy_ptx, compile_softmax_ptx])
+@pytest.mark.parametrize("compile_fn", [compile_saxpy_ptx, compile_softmax_ptx, compile_gemm_ptx])
 def test_numba_compiles_to_ptx_on_cpu(compile_fn):
     ptx = compile_fn(cc=(7, 5))
     assert ".entry" in ptx
     assert ".target sm_75" in ptx
+
+
+@requires_numba
+def test_numba_gemm_allocates_shared_tiles():
+    """The tiled GEMM must stage both operands in shared memory: 2 x TILE^2 x 4 bytes."""
+    ptx = compile_gemm_ptx(cc=(8, 0), tile=16)
+    shared = [line for line in ptx.splitlines() if ".shared" in line and "_cudapy_smem" in line]
+    assert len(shared) >= 2
+    assert "[1024]" in "".join(shared)  # 16 * 16 * 4 bytes per tile
 
 
 @requires_numba
@@ -175,6 +185,37 @@ def test_benchmark_engine_ranks_and_flags_correctness():
     assert "impl" in format_results(results)
 
 
+def test_benchmark_engine_reports_flops_for_gemm():
+    """Same engine, GEMM-shaped work: throughput should read as GFLOP/s when fed FLOPs."""
+    import numpy as np
+
+    from mlinfra.cuda import benchmark_impls, format_results
+
+    rng = np.random.default_rng(1)
+    m = k = n = 64
+    a = rng.standard_normal((m, k)).astype(np.float32)
+    b = rng.standard_normal((k, n)).astype(np.float32)
+
+    def naive(x, y):  # a genuinely different blocking strategy, same answer
+        out = np.zeros((x.shape[0], y.shape[1]), dtype=np.float32)
+        for i in range(0, x.shape[1], 16):
+            out += x[:, i : i + 16] @ y[i : i + 16, :]
+        return out
+
+    results = benchmark_impls(
+        {"numpy_matmul": lambda x, y: x @ y, "blocked": naive},
+        reference=lambda x, y: x @ y,
+        inputs=(a, b),
+        warmup=1,
+        iters=3,
+        atol=1e-3,
+        work_items=2 * m * n * k,
+    )
+    assert all(r.correct for r in results)
+    assert all(r.throughput_gitems_s > 0 for r in results)
+    assert "GFLOP/s" in format_results(results, unit="GFLOP/s")
+
+
 def test_softmax_benchmark_or_skip():
     if not triton_gpu_ready():
         pytest.skip("triton + torch + GPU required")
@@ -182,4 +223,27 @@ def test_softmax_benchmark_or_skip():
 
     results = run_softmax_benchmark(rows=512, cols=512, iters=5, db_path=":memory:")
     assert any(r.name == "triton" for r in results)
-    assert all(r.correct for r in results if r.name != "wrong")
+    assert all(r.correct for r in results)
+
+
+def test_gemm_benchmark_or_skip():
+    if not triton_gpu_ready():
+        pytest.skip("triton + torch + GPU required")
+    from mlinfra.cuda import run_gemm_benchmark
+
+    results = run_gemm_benchmark(m=256, n=256, k=256, iters=5, db_path=":memory:")
+    assert any(r.name == "triton" for r in results)
+    assert all(r.correct for r in results)
+    assert all(r.throughput_gitems_s > 0 for r in results)
+
+
+def test_triton_matmul_or_skip():
+    if not triton_gpu_ready():
+        pytest.skip("triton + torch + GPU required")
+    import torch
+
+    from mlinfra.cuda.triton_kernels import matmul
+
+    a = torch.randn(128, 96, device="cuda")
+    b = torch.randn(96, 64, device="cuda")
+    assert torch.allclose(matmul(a, b), a @ b, atol=1e-3)

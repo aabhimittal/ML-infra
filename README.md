@@ -103,8 +103,8 @@ cubin = ptx_to_cubin(res.ptx, "sm_75")  # PTX -> SASS (via ptxas)
 
 ### Three ways to write a kernel
 
-The same softmax/elementwise kernels are provided in all three languages MLE platform teams
-actually use, so you can compare them:
+The same kernels — elementwise, row softmax, and a shared-memory **tiled GEMM** — are provided
+in all three languages MLE platform teams actually use, so you can compare them:
 
 | Path | Module | Extra | CPU-compilable? |
 |------|--------|-------|-----------------|
@@ -136,19 +136,34 @@ and raise or skip cleanly otherwise. The GPU-gated tests run in the separate `GP
 ### Kernel benchmark (closes the loop with tracking)
 
 `mlinfra.cuda.bench` is a correctness + performance harness. The engine (`benchmark_impls`)
-is backend-agnostic and CPU-unit-tested; `run_softmax_benchmark` runs a real **Triton vs numba
-vs torch/cuBLAS** row-softmax shootout on a GPU, validates each against the torch reference,
-and logs latency / throughput / max-error to the **MLflow-style tracker**:
+is backend-agnostic and CPU-unit-tested. Two ops run a real **Triton vs numba vs torch/cuBLAS**
+shootout on a GPU, validate each against the torch reference, and log latency / throughput /
+max-error to the **MLflow-style tracker**:
+
+| Op | Function | Character | Throughput unit |
+|----|----------|-----------|-----------------|
+| Row softmax | `run_softmax_benchmark` | memory-bound reduction (attention softmax) | `Gitem/s` |
+| Tiled GEMM  | `run_gemm_benchmark`    | compute-bound blocking (dense projections) | `GFLOP/s` |
 
 ```bash
 python examples/kernel_bench.py     # GPU host; runs in the `GPU` workflow
 # illustrative output (actual numbers depend on the GPU):
+# == softmax (4096 x 2048) ==
 # impl            ok      mean_ms    p50_ms   Gitem/s     max_err
 # triton          yes      0.1820    0.1791     46.10    7.45e-07
 # torch_cublas    yes      0.2014    0.1998     41.66    0.00e+00
 # numba           yes      0.3957    0.3901     21.20    9.54e-07
-# Logged to experiment 'kernel-bench' in mlruns.db
+#
+# == tiled GEMM (1024 x 1024 x 1024) ==
+# impl            ok      mean_ms    p50_ms   GFLOP/s     max_err
+# torch_cublas    yes      0.2510    0.2498   8556.02    0.00e+00
+# triton          yes      0.3140    0.3122   6839.17    3.81e-06
+# numba           yes      2.9410    2.9302    730.19    4.77e-06
+# Logged both runs to experiment 'kernel-bench' in mlruns.db
 ```
+
+The GEMM benchmark disables TF32 (`torch.backends.cuda.matmul.allow_tf32 = False`) so cuBLAS
+is doing true fp32 math and the comparison against the hand-written kernels is fair.
 
 So a kernel change shows up as a tracked experiment run, the same way the RAG benchmark does —
 the CUDA, serving, and tracking layers all feed the one tracker.
