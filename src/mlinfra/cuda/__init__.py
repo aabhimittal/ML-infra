@@ -1,0 +1,67 @@
+"""CUDA kernel layer: compile real ``.cu`` kernels to PTX/SASS on CPU; launch on a GPU.
+
+The compile path (:mod:`~mlinfra.cuda.compile`) runs anywhere the toolchain wheels are
+installed (``pip install mlinfra[cuda]``) — no GPU required. The launch path
+(:mod:`~mlinfra.cuda.runtime`) needs real hardware and degrades gracefully otherwise.
+"""
+
+from mlinfra.cuda.bench import (
+    BenchResult,
+    benchmark_impls,
+    format_results,
+    run_gemm_benchmark,
+    run_softmax_benchmark,
+)
+from mlinfra.cuda.compile import (
+    CompileResult,
+    CudaToolchainError,
+    compile_file,
+    compile_kernel,
+    compile_to_ptx,
+    list_kernels,
+    nvrtc_available,
+    ptx_to_cubin,
+    ptxas_path,
+)
+from mlinfra.cuda.numba_kernels import (
+    NumbaUnavailableError,
+    compile_gemm_ptx,
+    compile_saxpy_ptx,
+    compile_softmax_ptx,
+    numba_available,
+)
+from mlinfra.cuda.runtime import NoGpuError, gpu_available
+from mlinfra.cuda.triton_kernels import triton_available, triton_gpu_ready
+
+# Grouped by kernel path rather than sorted alphabetically — the grouping is the
+# documentation here, so RUF022 (sorted __all__) is waived for this module only.
+__all__ = [  # noqa: RUF022
+    # raw CUDA C++ (NVRTC) path
+    "CompileResult",
+    "CudaToolchainError",
+    "compile_file",
+    "compile_kernel",
+    "compile_to_ptx",
+    "list_kernels",
+    "nvrtc_available",
+    "ptx_to_cubin",
+    "ptxas_path",
+    # numba (Python -> PTX, CPU-compilable) path
+    "NumbaUnavailableError",
+    "compile_gemm_ptx",
+    "compile_saxpy_ptx",
+    "compile_softmax_ptx",
+    "numba_available",
+    # triton (GPU-gated) path
+    "triton_available",
+    "triton_gpu_ready",
+    # benchmark harness
+    "BenchResult",
+    "benchmark_impls",
+    "format_results",
+    "run_gemm_benchmark",
+    "run_softmax_benchmark",
+    # driver-API launch (GPU-gated)
+    "NoGpuError",
+    "gpu_available",
+]

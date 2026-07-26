@@ -144,7 +144,8 @@ async def run_benchmark() -> None:
     print(f"  wall_time_s         : {wall:.3f}")
     print(f"  total_answer_tokens : {total_tokens}")
     print(f"  throughput_tok/s    : {throughput:.1f}")
-    print(f"  latency p50 / p95 s : {summary['latency_s.p50']:.4f} / {summary['latency_s.p95']:.4f}")
+    p50, p95 = summary["latency_s.p50"], summary["latency_s.p95"]
+    print(f"  latency p50 / p95 s : {p50:.4f} / {p95:.4f}")
 
     logged = tracker.get_run(run_id)
     print(f"\n== Tracked run {logged.run_id[:8]} ({logged.experiment}) ==")

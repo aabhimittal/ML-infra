@@ -20,7 +20,7 @@ import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
-from mlinfra.serving.backends import ModelBackend, MockModelBackend, count_tokens
+from mlinfra.serving.backends import MockModelBackend, ModelBackend, count_tokens
 from mlinfra.serving.schemas import GenerateRequest, GenerateResponse, MetricsSnapshot
 
 _DONE = object()  # sentinel pushed onto a request's output queue when generation completes

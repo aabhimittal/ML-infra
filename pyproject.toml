@@ -23,12 +23,29 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    # Pinned to a minor range: ruff's *default* rule set changes between minors, so an
+    # unpinned lower bound makes CI fail on releases that pass locally.
+    "ruff>=0.16,<0.17",
 ]
 # Heavy/optional integrations. None are required to run the project.
 hf = ["transformers>=4.40", "torch>=2.2"]
 embeddings = ["sentence-transformers>=2.7"]
 anthropic = ["anthropic>=0.40"]
+# CUDA compiler toolchain (NVRTC + ptxas) as pip wheels. Compiles kernels on CPU; no GPU
+# needed to install or to run the compile tests. Launching kernels still requires a GPU.
+cuda = ["nvidia-cuda-nvrtc-cu12>=12.0", "nvidia-cuda-nvcc-cu12>=12.0"]
+# numba.cuda: write kernels in Python, compile to PTX on CPU via numba-cuda + the NVIDIA
+# binding (auto-detects the nvcc wheel). CPU-verifiable, like the NVRTC path.
+numba = [
+    "numba-cuda>=0.30",
+    "cuda-python>=12.0",
+    "nvidia-cuda-nvcc-cu12>=12.0",
+    # numba-cuda probes the CUDA runtime version at import time, so `from numba import cuda`
+    # raises DynamicLibNotFoundError without libcudart even though compilation never needs it.
+    "nvidia-cuda-runtime-cu12>=12.0",
+]
+# Triton: vLLM/TGI's kernel language. Defines on CPU; compiles/launches only on a GPU.
+triton = ["triton>=3.0", "torch>=2.2"]
 
 [project.scripts]
 mlinfra-server = "mlinfra.serving.server:main"
@@ -37,6 +54,9 @@ mlinfra-bench = "examples.benchmark:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"mlinfra.cuda" = ["kernels/*.cu"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -44,3 +64,13 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+# Selected explicitly rather than relying on ruff's defaults, which shift between releases.
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PIE"]
+# Deliberately not selected — each conflicts with a pattern this codebase uses on purpose:
+#   BLE001 / S110  broad `except Exception` when probing optional GPU deps (a broken numba or
+#                  triton install raises far more than ImportError; failing soft is the point)
+#   PLR1730        `if v > local: local = v` inside CUDA kernels, where `max()` does not
+#                  necessarily lower to the same device code
+#   PYI034         a stub-file rule that misfires on runtime `__aenter__` returning its class

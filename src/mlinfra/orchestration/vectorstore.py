@@ -41,7 +41,8 @@ def hash_token(tok: str) -> int:
 
 
 def cosine(a: list[float], b: list[float]) -> float:
-    return sum(x * y for x, y in zip(a, b))  # inputs are L2-normalized
+    # strict=True: a dimension mismatch is a bug, not something to silently truncate.
+    return sum(x * y for x, y in zip(a, b, strict=True))  # inputs are L2-normalized
 
 
 @dataclass
